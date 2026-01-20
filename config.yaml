@@ -1,0 +1,30 @@
+# BiteRate Social Media AI Agent Configuration
+
+# Notion Settings
+notion:
+  # Database or page IDs to fetch content from
+  database_ids: []
+  page_ids: ['2ee5722eb55980459b48c8437bd419da']
+  # Maximum number of reviews to fetch
+  max_reviews: 10
+
+# LLM Settings
+llm:
+  provider: "openrouter"  # Options: openai, openrouter
+  model: "z-ai/glm-4.5-air:free"  # Model to use for generation (free model on OpenRouter)
+  temperature: 0.7
+  max_tokens: 500
+
+# Post Generation Settings
+post_generation:
+  tone: "friendly and engaging"  # Tone for social media posts
+  max_length: 500  # Maximum character length for posts
+  include_hashtags: true
+  hashtags: ["#BiteRate", "#FoodReview", "#Foodie", "AIGenerated"]
+
+# Mastodon Settings
+mastodon:
+  # Post visibility: public, unlisted, private, direct
+  visibility: "public"
+  # Whether to actually post (set to false for testing)
+  dry_run: false

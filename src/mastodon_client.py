@@ -1,0 +1,80 @@
+"""
+Mastodon Client for posting social media content.
+Note: Actual posting is commented out - will print what would be posted instead.
+"""
+import os
+from typing import Optional
+from mastodon import Mastodon
+
+
+class MastodonClient:
+    """Client for interacting with Mastodon API."""
+    
+    def __init__(
+        self,
+        instance_url: Optional[str] = None,
+        access_token: Optional[str] = None,
+        visibility: str = "public"
+    ):
+        """
+        Initialize Mastodon client.
+        
+        Args:
+            instance_url: Mastodon instance URL
+            access_token: Mastodon access token
+            visibility: Post visibility (public, unlisted, private, direct)
+        """
+        self.instance_url = (instance_url or os.getenv("MASTODON_INSTANCE_URL", "")).strip()
+        self.access_token = (access_token or os.getenv("MASTODON_ACCESS_TOKEN", "")).strip()
+        self.visibility = visibility
+        
+        if not self.instance_url:
+            raise ValueError("Mastodon instance URL is required. Set MASTODON_INSTANCE_URL in .env file.")
+        if not self.access_token:
+            raise ValueError("Mastodon access token is required. Set MASTODON_ACCESS_TOKEN in .env file.")
+        
+        self.client = Mastodon(
+            access_token=self.access_token,
+            api_base_url=self.instance_url
+        )
+    
+    def post(self, content: str, dry_run: bool = True) -> dict:
+        """
+        Post content to Mastodon.
+        
+        Args:
+            content: The post content to publish
+            dry_run: If True, only print what would be posted (don't actually post)
+            
+        Returns:
+            Dictionary with post information or status
+        """
+        if dry_run:
+            print("\n" + "="*60)
+            print("DRY RUN MODE - Would post to Mastodon:")
+            print("="*60)
+            print(f"Instance: {self.instance_url}")
+            print(f"Visibility: {self.visibility}")
+            print(f"Content:\n{content}")
+            print("="*60 + "\n")
+            
+            return {
+                "status": "dry_run",
+                "content": content,
+                "visibility": self.visibility,
+                "instance": self.instance_url
+            }
+        else:
+            # Actual posting code
+            try:
+                status = self.client.status_post(
+                    content,
+                    visibility=self.visibility
+                )
+                print(f"Successfully posted to Mastodon!")
+                print(f"Post ID: {status.get('id')}")
+                print(f"URL: {status.get('url')}")
+                return status
+            except Exception as e:
+                print(f"Error posting to Mastodon: {e}")
+                return {"error": str(e)}

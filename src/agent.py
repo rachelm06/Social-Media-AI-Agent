@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from src.notion_client import NotionClient
 from src.llm_client import LLMClient
 from src.mastodon_client import MastodonClient
+from src.image_client import ImageClient
 from src.models import Review
 
 
@@ -37,6 +38,7 @@ class BiteRateAgent:
             provider=self.config.get("llm", {}).get("provider", "openrouter"),
             max_tokens=self.config.get("llm", {}).get("max_tokens", 500)
         )
+        self.image_client = ImageClient()
         self.mastodon_client = MastodonClient(
             visibility=self.config.get("mastodon", {}).get("visibility", "public")
         )
@@ -75,10 +77,31 @@ class BiteRateAgent:
         print(post)
         print("-" * 60 + "\n")
         
+        # Step 2.5: Generate AI image
+        print("Step 2.5: Generating AI image...")
+        image_config = self.config.get("image_generation", {})
+        trigger_word = image_config.get("trigger_word", "P3@NUT")
+        model = image_config.get("model", "sundai-club/rachel_frenchie_mode:b07cb658fe2949e3fa1fa6f1f593f22e6cc62d6190eae8896fdc76ade752765b")
+        image_prompt = f"{trigger_word} is in a restaurant"
+        image_url = self.image_client.generate_image(image_prompt, model=model)
+        
+        media_files = None
+        if image_url:
+            print(f"✓ Generated image: {image_url}")
+            # Download the image for Mastodon upload
+            image_data = self.image_client.download_image(image_url)
+            if image_data:
+                media_files = [image_data]
+                print(f"✓ Downloaded image for upload\n")
+            else:
+                print("⚠️ Failed to download image\n")
+        else:
+            print("⚠️ Failed to generate image\n")
+        
         # Step 3: Post to Mastodon (or print in dry run mode)
         print("Step 3: Posting to Mastodon...")
         dry_run = self.config.get("mastodon", {}).get("dry_run", True)
-        result = self.mastodon_client.post(post, dry_run=dry_run)
+        result = self.mastodon_client.post(post, media_files=media_files, dry_run=dry_run)
         
         print("✓ Workflow complete!\n")
         return result

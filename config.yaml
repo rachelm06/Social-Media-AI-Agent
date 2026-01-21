@@ -22,6 +22,11 @@ post_generation:
   include_hashtags: true
   hashtags: ["#BiteRate", "#FoodReview", "#Foodie", "AIGenerated"]
 
+# Image Generation Settings
+image_generation:
+  trigger_word: "P3@NUT"  # Trigger word for the fine-tuned model
+  model: "sundai-club/rachel_frenchie_mode:b07cb658fe2949e3fa1fa6f1f593f22e6cc62d6190eae8896fdc76ade752765b"  # Full model version
+
 # Mastodon Settings
 mastodon:
   # Post visibility: public, unlisted, private, direct

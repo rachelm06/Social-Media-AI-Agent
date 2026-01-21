@@ -3,7 +3,7 @@ Mastodon Client for posting social media content.
 Note: Actual posting is commented out - will print what would be posted instead.
 """
 import os
-from typing import Optional
+from typing import Optional, List, IO
 from mastodon import Mastodon
 
 
@@ -38,12 +38,13 @@ class MastodonClient:
             api_base_url=self.instance_url
         )
     
-    def post(self, content: str, dry_run: bool = True) -> dict:
+    def post(self, content: str, media_files: Optional[List[IO]] = None, dry_run: bool = True) -> dict:
         """
         Post content to Mastodon.
         
         Args:
             content: The post content to publish
+            media_files: Optional list of file-like objects (BytesIO) containing images to attach
             dry_run: If True, only print what would be posted (don't actually post)
             
         Returns:
@@ -56,25 +57,42 @@ class MastodonClient:
             print(f"Instance: {self.instance_url}")
             print(f"Visibility: {self.visibility}")
             print(f"Content:\n{content}")
+            if media_files:
+                print(f"Attachments: {len(media_files)} image(s)")
             print("="*60 + "\n")
             
             return {
                 "status": "dry_run",
                 "content": content,
                 "visibility": self.visibility,
-                "instance": self.instance_url
+                "instance": self.instance_url,
+                "media_count": len(media_files) if media_files else 0
             }
         else:
             # Actual posting code
             try:
+                media_ids = []
+                
+                # Upload media files first if provided
+                if media_files:
+                    for media_file in media_files:
+                        media = self.client.media_post(media_file, mime_type="image/jpeg")
+                        media_ids.append(media["id"])
+                
+                # Post with media attachments
                 status = self.client.status_post(
                     content,
+                    media_ids=media_ids if media_ids else None,
                     visibility=self.visibility
                 )
                 print(f"Successfully posted to Mastodon!")
                 print(f"Post ID: {status.get('id')}")
                 print(f"URL: {status.get('url')}")
+                if media_ids:
+                    print(f"Attached {len(media_ids)} image(s)")
                 return status
             except Exception as e:
                 print(f"Error posting to Mastodon: {e}")
+                import traceback
+                traceback.print_exc()
                 return {"error": str(e)}

@@ -10,6 +10,7 @@ from src.notion_client import NotionClient
 from src.llm_client import LLMClient
 from src.mastodon_client import MastodonClient
 from src.image_client import ImageClient
+from src.telegram_client import TelegramClient
 from src.models import Review
 
 
@@ -42,6 +43,17 @@ class BiteRateAgent:
         self.mastodon_client = MastodonClient(
             visibility=self.config.get("mastodon", {}).get("visibility", "public")
         )
+        
+        # Initialize Telegram client if enabled
+        telegram_enabled = self.config.get("telegram", {}).get("enabled", False)
+        self.telegram_client = None
+        if telegram_enabled:
+            try:
+                self.telegram_client = TelegramClient()
+                print("✓ Telegram HITL enabled")
+            except ValueError as e:
+                print(f"⚠️ Telegram client not initialized: {e}")
+                print("   Continuing without HITL approval...")
     
     def run(self):
         """Execute the main workflow: fetch content, generate post, and post to Mastodon."""
@@ -86,8 +98,10 @@ class BiteRateAgent:
         image_url = self.image_client.generate_image(image_prompt, model=model)
         
         media_files = None
+        image_url_for_approval = None
         if image_url:
             print(f"✓ Generated image: {image_url}")
+            image_url_for_approval = image_url  # Store for approval message
             # Download the image for Mastodon upload
             image_data = self.image_client.download_image(image_url)
             if image_data:
@@ -97,6 +111,29 @@ class BiteRateAgent:
                 print("⚠️ Failed to download image\n")
         else:
             print("⚠️ Failed to generate image\n")
+        
+        # Step 2.75: Human approval via Telegram (if enabled)
+        
+        if self.telegram_client:
+            print("Step 2.75: Requesting human approval via Telegram...")
+            decision, rejection_reason = self.telegram_client.request_approval_sync(
+                post,
+                image_url=image_url_for_approval
+            )
+            
+            if decision == "approve":
+                print("✅ Post approved! Proceeding to publish...\n")
+            elif decision == "reject":
+                print(f"❌ Post rejected.")
+                if rejection_reason:
+                    print(f"   Reason: {rejection_reason}")
+                print("   Post will NOT be published.\n")
+                return {"status": "rejected", "reason": rejection_reason}
+            else:
+                print(f"⚠️ Unknown decision: {decision}\n")
+                return {"status": "error", "decision": decision}
+        else:
+            print("Step 2.75: Skipping Telegram approval (not enabled)\n")
         
         # Step 3: Post to Mastodon (or print in dry run mode)
         print("Step 3: Posting to Mastodon...")

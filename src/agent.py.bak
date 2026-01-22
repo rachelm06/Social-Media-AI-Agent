@@ -11,7 +11,6 @@ from src.llm_client import LLMClient
 from src.mastodon_client import MastodonClient
 from src.image_client import ImageClient
 from src.telegram_client import TelegramClient
-from src.database_client import DatabaseClient
 from src.models import Review
 
 
@@ -55,13 +54,6 @@ class BiteRateAgent:
             except ValueError as e:
                 print(f"⚠️ Telegram client not initialized: {e}")
                 print("   Continuing without HITL approval...")
-        
-        # Initialize database client
-        try:
-            self.db_client = DatabaseClient()
-        except Exception as e:
-            print(f"⚠️ Database client not initialized: {e}")
-            self.db_client = None
     
     def run(self):
         """Execute the main workflow: fetch content, generate post, and post to Mastodon."""
@@ -80,19 +72,6 @@ class BiteRateAgent:
             print("  - Note: Empty pages or pages with only child pages may return no text")
             return
         
-        # Save reviews to database
-        if self.db_client:
-            for review in reviews:
-                self.db_client.save_review(
-                    review_id=review.id,
-                    notion_page_id=review.id,
-                    restaurant=review.restaurant,
-                    rating=review.rating,
-                    review=review.review,
-                    cuisine=review.cuisine,
-                    location=review.location
-                )
-        
         print(f"✓ Fetched company info ({len(company_info)} chars)")
         print(f"✓ Fetched {len(reviews)} reviews\n")
         
@@ -109,18 +88,6 @@ class BiteRateAgent:
         print("-" * 60)
         print(post)
         print("-" * 60 + "\n")
-        
-        # Save post to database
-        post_id = None
-        if self.db_client:
-            post_config = self.config.get("post_generation", {})
-            hashtags = post_config.get("hashtags", [])
-            post_id = self.db_client.save_post(
-                content=post,
-                hashtags=hashtags,
-                tone=post_config.get("tone", "friendly and engaging"),
-                status="pending"
-            )
         
         # Step 2.5: Generate AI image
         print("Step 2.5: Generating AI image...")
@@ -154,23 +121,14 @@ class BiteRateAgent:
                 image_url=image_url_for_approval
             )
             
-            # Save approval to database
-            if self.db_client and post_id:
-                self.db_client.save_approval(post_id, decision, rejection_reason)
-                if decision == "reject" and rejection_reason:
-                    self.db_client.save_feedback(post_id, "rejection", rejection_reason)
             
             if decision == "approve":
                 print("✅ Post approved! Proceeding to publish...\n")
-                if self.db_client and post_id:
-                    self.db_client.update_post_status(post_id, "approved")
             elif decision == "reject":
                 print(f"❌ Post rejected.")
                 if rejection_reason:
                     print(f"   Reason: {rejection_reason}")
                 print("   Post will NOT be published.\n")
-                if self.db_client and post_id:
-                    self.db_client.update_post_status(post_id, "rejected")
                 return {"status": "rejected", "reason": rejection_reason}
             else:
                 print(f"⚠️ Unknown decision: {decision}\n")
@@ -182,22 +140,6 @@ class BiteRateAgent:
         print("Step 3: Posting to Mastodon...")
         dry_run = self.config.get("mastodon", {}).get("dry_run", True)
         result = self.mastodon_client.post(post, media_files=media_files, dry_run=dry_run)
-        
-        # Update database with post status
-        if self.db_client and post_id:
-            if result.get("status") == "dry_run":
-                self.db_client.update_post_status(post_id, "pending")
-            elif "id" in result or "Post ID" in str(result):
-                mastodon_id = result.get("id") or result.get("Post ID", "")
-                mastodon_url = result.get("url") or result.get("URL", "")
-                self.db_client.update_post_status(
-                    post_id, 
-                    "published",
-                    mastodon_post_id=str(mastodon_id),
-                    mastodon_url=mastodon_url
-                )
-            else:
-                self.db_client.update_post_status(post_id, "failed")
         
         print("✓ Workflow complete!\n")
         return result

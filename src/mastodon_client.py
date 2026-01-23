@@ -96,3 +96,45 @@ class MastodonClient:
                 import traceback
                 traceback.print_exc()
                 return {"error": str(e)}
+    
+    def reply(self, post_id: str, content: str, dry_run: bool = True) -> dict:
+        """
+        Reply to a Mastodon post.
+        
+        Args:
+            post_id: ID of the post to reply to
+            content: The reply content
+            dry_run: If True, only print what would be posted
+            
+        Returns:
+            Dictionary with reply information or status
+        """
+        if dry_run:
+            print("\n" + "="*60)
+            print("DRY RUN MODE - Would reply to Mastodon post:")
+            print("="*60)
+            print(f"Replying to post ID: {post_id}")
+            print(f"Reply content:\n{content}")
+            print("="*60 + "\n")
+            
+            return {
+                "status": "dry_run",
+                "content": content,
+                "in_reply_to_id": post_id
+            }
+        else:
+            try:
+                status = self.client.status_post(
+                    content,
+                    in_reply_to_id=post_id,
+                    visibility=self.visibility
+                )
+                print(f"Successfully replied to Mastodon post!")
+                print(f"Reply ID: {status.get('id')}")
+                print(f"URL: {status.get('url')}")
+                return status
+            except Exception as e:
+                print(f"Error replying to Mastodon post: {e}")
+                import traceback
+                traceback.print_exc()
+                return {"error": str(e)}

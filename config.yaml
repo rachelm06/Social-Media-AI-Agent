@@ -30,6 +30,25 @@ image_generation:
 # Telegram HITL Settings
 telegram:
   enabled: true  # Enable Telegram human-in-the-loop approval
+
+# Chunking Settings
+chunking:
+  strategy: "markdown_header"  # Options: "fixed_chars", "paragraph", "sentence", "markdown_header"
+  chunk_size: 500  # For fixed_chars strategy
+  chunk_overlap: 50  # Overlap between chunks
+  sentences_per_chunk: 3  # For sentence strategy
+
+# Notion Listener Settings
+notion_listener:
+  enabled: true  # Enable Notion change detection
+  poll_interval: 60  # seconds (reduced for testing)
+  auto_post: true  # Auto-post on content change
+
+# Mastodon Listener Settings
+mastodon_listener:
+  enabled: false  # Enable Mastodon comment monitoring
+  poll_interval: 60  # seconds
+  auto_reply: true  # Auto-reply to comments
   # Bot token and chat ID should be set in .env file
 
 # Mastodon Settings

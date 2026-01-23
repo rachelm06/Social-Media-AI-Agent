@@ -58,6 +58,7 @@ class LLMClient:
         self,
         company_info: str,
         reviews: List[Review],
+        rag_context: str = "",
         tone: str = "friendly and engaging",
         max_length: int = 500,
         include_hashtags: bool = True,
@@ -85,7 +86,7 @@ class LLMClient:
         review_context = self._format_reviews_for_context(reviews)
         
         # Create prompt
-        prompt = self._create_prompt(company_info, review_context, tone, max_length, include_hashtags, hashtags, guidelines)
+        prompt = self._create_prompt(company_info, review_context, rag_context, tone, max_length, include_hashtags, hashtags, guidelines)
         
         try:
             response = self.client.chat.completions.create(
@@ -171,6 +172,7 @@ class LLMClient:
         self,
         company_info: str,
         review_context: str,
+        rag_context: str,
         tone: str,
         max_length: int,
         include_hashtags: bool,
@@ -180,7 +182,15 @@ class LLMClient:
         """Create the prompt for post generation."""
         prompt = f"""Generate a social media post for BiteRate, a food review company based on the following information.
 
-IMPORTANT: Use the specific details from the Company Information and Recent Reviews below to create your post. Reference actual restaurants, dishes, locations, and ratings mentioned.
+IMPORTANT: Use the specific details from the Company Information, Knowledge Base Context, and Recent Reviews below to create your post. Reference actual restaurants, dishes, locations, and ratings mentioned."""
+
+        if rag_context:
+            prompt += f"""
+
+Knowledge Base Context (use this information to ground your post):
+{rag_context}"""
+
+        prompt += f"""
 
 Company Information:
 {company_info}

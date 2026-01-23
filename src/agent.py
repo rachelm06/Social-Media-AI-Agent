@@ -12,6 +12,8 @@ from src.mastodon_client import MastodonClient
 from src.image_client import ImageClient
 from src.telegram_client import TelegramClient
 from src.database_client import DatabaseClient
+from src.rag_client import RAGClient
+from src.knowledge_base import KnowledgeBase
 from src.models import Review
 
 
@@ -62,6 +64,21 @@ class BiteRateAgent:
         except Exception as e:
             print(f"⚠️ Database client not initialized: {e}")
             self.db_client = None
+        
+        # Initialize RAG client and knowledge base
+        try:
+            self.rag_client = RAGClient()
+            self.knowledge_base = KnowledgeBase(config_path)
+            
+            # Auto-sync knowledge base if empty
+            if self.knowledge_base.is_empty():
+                print("📚 Knowledge base is empty. Syncing from Notion...")
+                self.knowledge_base.sync_notion_to_kb()
+                print("✓ Knowledge base synced\n")
+        except Exception as e:
+            print(f"⚠️ RAG client not initialized: {e}")
+            self.rag_client = None
+            self.knowledge_base = None
     
     def run(self):
         """Execute the main workflow: fetch content, generate post, and post to Mastodon."""
@@ -96,9 +113,27 @@ class BiteRateAgent:
         print(f"✓ Fetched company info ({len(company_info)} chars)")
         print(f"✓ Fetched {len(reviews)} reviews\n")
         
-        # Step 2: Generate social media post
-        print("Step 2: Generating social media post with LLM...")
-        post = self._generate_post(company_info, reviews)
+        # Step 2: Retrieve relevant context using RAG
+        rag_context = ""
+        if self.rag_client and reviews:
+            print("Step 2: Retrieving relevant context using RAG...")
+            # Extract keywords from reviews for query
+            query_keywords = []
+            for review in reviews[:3]:  # Use top 3 reviews
+                if review.restaurant:
+                    query_keywords.append(review.restaurant)
+                if review.cuisine:
+                    query_keywords.append(review.cuisine)
+            
+            query = " ".join(query_keywords) if query_keywords else "food review restaurant"
+            rag_context, _ = self.rag_client.retrieve_context(query, top_k=5)
+            print(f"✓ Retrieved context from knowledge base ({len(rag_context)} chars)\n")
+        else:
+            print("Step 2: Skipping RAG (not available or no reviews)\n")
+        
+        # Step 3: Generate social media post
+        print("Step 3: Generating social media post with LLM...")
+        post = self._generate_post(company_info, reviews, rag_context=rag_context)
         
         if not post:
             print("❌ Failed to generate post.")
@@ -309,8 +344,8 @@ class BiteRateAgent:
             print(f"Error parsing page {page_id} as review: {e}")
             return None
     
-    def _generate_post(self, company_info: str, reviews: list) -> str:
-        """Generate a social media post using the LLM."""
+    def _generate_post(self, company_info: str, reviews: list, rag_context: str = "") -> str:
+        """Generate a social media post using the LLM with optional RAG context."""
         post_config = self.config.get("post_generation", {})
         
         # Get hashtags from config and ensure #AIGenerated is always included
@@ -324,6 +359,7 @@ class BiteRateAgent:
         post = self.llm_client.generate_post(
             company_info=company_info,
             reviews=reviews,
+            rag_context=rag_context,
             tone=post_config.get("tone", "friendly and engaging"),
             max_length=post_config.get("max_length", 500),
             include_hashtags=post_config.get("include_hashtags", True),
